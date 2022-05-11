@@ -1,0 +1,9 @@
+Type: Jupyter Notebook Extension
+Compatibility: 3.x
+Name: Code Cell Dependency Fixer
+Main: main.js
+Link: README.md
+Description: |
+  This tool tries to solve the code cell dependency for a given cell in notebook file. When user select one cell, the tool could export all dependent code blocks into a new notebook so the results in the selected code block could be preserved.
+Parameters:
+- none
