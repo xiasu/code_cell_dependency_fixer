@@ -1,0 +1,33 @@
+This repository contains the code for a Jupyter notebook plugin called Code Cell Dependency Fixer. 
+This plugin records coding activity and provides user with functionality of exporting dependent code cells 
+for a selected cell.
+
+Installation
+============
+1\. Install the jupyter_contrib_nbextensions
+------------------------------
+To install our plugin, please first install the `jupyter_contrib_nbextensions`.
+Please refer to [jupyter_nbextensions](https://github.com/ipython-contrib) for detailed instruction.
+
+2\. Download project file into nbextension folder
+------------------------------------
+
+Next, please download or copy this project file into the jupyter_contrib_nbextensions folder, 
+which is under the site package directory. For example:
+
+`'.../python3.9/site-packages/jupyter_contrib_nbextensions/nbextensions/code_cell_dependency_fixer'`
+
+Then please run this command in terminal to install the copied files.
+
+    jupyter contrib nbextension install --user
+
+After running this command, you could initiate the jupyter notebook in the installed environment.
+
+3\. Enable and use the plugin
+------------------------------------
+
+Finally, you could find the plugin in the Nbextensions menu of the Jupyter Notebook homepage. 
+Please enable it by ticking the checkbox, then a new button will appear in the Jupyter notebook menu.
+
+When coding, you could click and select a code cell at anytime, and click the new button to export all
+dependent code cells in a new notebook. This new notebook will pop out in the browser.
