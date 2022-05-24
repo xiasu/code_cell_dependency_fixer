@@ -5,7 +5,9 @@ define([
     'notebook/js/codecell'
     ], function(Jupyter, events,utils,codecell) {
     var codeBlocksExecuted;
+    var ObjectList;
     var CodeCell = codecell.CodeCell;
+    
       var insert_cell = function() {
           //First get the total cell count
           var cellCount=JSON.parse(JSON.stringify(Jupyter.notebook.ncells()));
@@ -83,7 +85,11 @@ define([
       var AddButton = function () {
           console.log();
           events.on('execute.CodeCell', recordCell);
+          events.on('execute.CodeCell', varRefresh);
+          events.on('varRefresh', varRefresh);
+          events.on('kernel_restarting.Kernel',varRefresh);//Not working!
           events.on('kernel_restarting.Kernel',resetRecord);//Not working!
+
           Jupyter.toolbar.add_buttons_group([
               Jupyter.keyboard_manager.actions.register ({
                   'help': 'Export dependent code cells for selected output module',
@@ -93,10 +99,41 @@ define([
           ])
       }
       function recordCell (evt, data) {
-         console.log(data.cell.last_msg_id);
+         console.log(data.cell);
         codeBlocksExecuted.push({"Index":"*","Content":data.cell.get_text(),"Id":data.cell.last_msg_id});
         //codeBlocksExecuted.push({"Index":codeBlocksExecuted.length,"Content":JSON.parse(JSON.stringify(data.cell.get_text()))});
     }
+    
+    function recordObjectList (msg) {
+        console.log(msg)
+        var varList = JSON.parse(String(msg.content['text']))
+        var curIndex = Math.max(...codeBlocksExecuted.map(o => o.Index))
+        const exclude_names = ['get_ipython', 'var_dic_list'];
+        varList.forEach(listVar => {
+            if (!exclude_names.includes(listVar.varName)) {
+            var found = false;
+            for (var i = 0; i < ObjectList.length; i++) {
+                if (ObjectList[i].Name == listVar.varName) {
+                    if (ObjectList[i].Type != listVar.varType || ObjectList[i].Value != listVar.varContent) {
+                        console.log(listVar);
+                        console.log(ObjectList[i]);
+
+                        ObjectList[i].Type = listVar.varType;
+                        ObjectList[i].Value = listVar.varContent;
+                        ObjectList[i].Index = curIndex;
+                    }
+                    found = true;
+                    break;
+                }
+            }
+            if (! found) {
+                ObjectList.push({'Name':listVar.varName, "Type":listVar.varType, "Value": listVar.varContent, "Index": curIndex});
+            }}
+        })
+        console.log(ObjectList);
+        
+    }
+    
     function patch_CodeCell_get_callbacks () {
         console.log('patching CodeCell.prototype.get_callbacks');
         var old_get_callbacks = CodeCell.prototype.get_callbacks;
@@ -114,7 +151,7 @@ define([
                     for(var i=0; i<codeBlocksExecuted.length;i++)
                     {
                         if(codeBlocksExecuted[i].Id==msg.parent_header.msg_id)
-                        {
+                        {   console.log(msg);
                             codeBlocksExecuted[i].Index=msg.content.execution_count;
                             console.log(codeBlocksExecuted[i]);
                             break;
@@ -131,15 +168,29 @@ define([
     }
     function resetRecord(){
           codeBlocksExecuted=new Array();
+        ObjectList = new Array();
     }
     // Run on start
     function load_ipython_extension() {
           codeBlocksExecuted=new Array();
+            ObjectList = new Array();
           patch_CodeCell_get_callbacks();
         // Add a default cell if there are no cells
         AddButton();
     }
+    
+    var varRefresh = function() {
+        var libName = Jupyter.notebook.base_url + "nbextensions/code_cell_dependency_fixer/var_list.py";
+        $.get(libName).done(function(data) {
+            Jupyter.notebook.kernel.execute(data, { iopub: { output: recordObjectList } }, { silent: false });
+        }).fail(function() {
+            console.log('Failed to load ' + libName);
+        });
+    }
+
+    
     return {
-        load_ipython_extension: load_ipython_extension
+        load_ipython_extension: load_ipython_extension,
+        varRefresh: varRefresh
     };
 });
