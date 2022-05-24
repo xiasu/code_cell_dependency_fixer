@@ -83,7 +83,7 @@ define([
       };
       // Add Toolbar button
       var AddButton = function () {
-          console.log();
+          //console.log();
           events.on('execute.CodeCell', recordCell);
           events.on('execute.CodeCell', varRefresh);
           events.on('varRefresh', varRefresh);
