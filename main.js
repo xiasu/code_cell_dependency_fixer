@@ -21,14 +21,18 @@ define([
         //console.log("selected cell index is ",index);
         Jupyter.notebook.select(cellCount-1,false);
         //console.log(codeBlocksExecuted);
-        for(var i=0; i<codeBlocksExecuted.length;i++)
+        dependencySet = new Set();
+        getDependency(index, dependencySet);
+        console.log(dependencySet);
+        toBeExported = codeBlocksExecuted.filter(function(e) {
+            return dependencySet.has(e.Index);
+        });
+        for(var i=0; i<toBeExported.length;i++)
         {
-            if(codeBlocksExecuted[i].Index>index)//Only export cells executed before the selected one
-                break;
             //console.log(codeBlocksExecuted[i].Index);
             Jupyter.notebook.
             insert_cell_below().
-            set_text(codeBlocksExecuted[i].Content);
+            set_text(toBeExported[i].Content);
             Jupyter.notebook.select_next();
         }
         //console.log("There are ",JSON.parse(JSON.stringify(Jupyter.notebook.ncells()))," cells after adding");
@@ -106,7 +110,9 @@ define([
     }
     
     function recordobjectList (msg) {
-        //console.log(msg)
+        if (String(msg.content['text']) == '\n') {
+            return;
+        }
         var varList = JSON.parse(String(msg.content['text']))
         //console.log(varList)
         var curIndex = Math.max(...codeBlocksExecuted.map(o => o.Index))
@@ -117,8 +123,8 @@ define([
                 for (var i = 0; i < objectList.length; i++) {
                     if (objectList[i].Name == listVar.varName) {
                         if (objectList[i].Type != listVar.varType || objectList[i].Value != listVar.varContent) {
-                            console.log(listVar);
-                            console.log(objectList[i]);
+                            //console.log(listVar);
+                            // console.log(objectList[i]);
                             
                             objectList[i].Type = listVar.varType;
                             objectList[i].Value = listVar.varContent;
@@ -142,7 +148,7 @@ define([
         
         // not sure waht happens here :/
         if (msg.msg_type == "error") {
-            console.log('error, may handle later??', msg.content.evalue)
+            // console.log('error, may handle later??', msg.content.evalue)
             return;
         }
         console.log("Bytecode result: ",msg)
@@ -175,7 +181,7 @@ define([
             switch (btc.code){
                 case "LOAD_NAME":{//Figure out what is this name. If it's a var, make a dependency. If it's a class, make a dependency and mark it
                     var retrieved=retrieveVariable(btc.name)
-                    // console.log(retrieved);
+                    console.log(retrieved);
                     if(retrieved!=null){
                         if(retrieved.Type=="type" || classList.some(el => el.Name === retrieved.Name)){
                             nameLoaded=retrieved.Name
@@ -245,6 +251,20 @@ define([
 
         //if(instr.opname in ['LOAD_NAME','STORE_NAME','LOAD_GLOBAL','MAKE_FUNCTION','CALL_FUNCTION','LOAD_BUILD_CLASS','LOAD_ATTR','STORE_ATTR','LOAD_METHOD','STORE_METHOD'])
     }
+    
+    function getDependency(cellIndex, prevResult) {
+        prevResult.add(cellIndex);
+        var curCell = codeBlocksExecuted.filter(function(e) {
+            return e.Index == cellIndex;
+        });
+        if (curCell.length != 1) {
+            console.log('something went wrong :(')
+        } else {
+            curCell[0].Dependency.forEach(item => getDependency(item, prevResult))
+
+        }
+    }
+    
     function retrieveVariable(name){
         for(var i=0;i<objectList.length;i++){
             if(objectList[i].Name==name)
