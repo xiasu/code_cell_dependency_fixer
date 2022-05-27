@@ -16,11 +16,11 @@ except ImportError:
 
 def var_dic_list():
     #types_to_exclude = ['module', 'function', 'builtin_function_or_method', 'instance', '_Feature', 'type', 'ufunc']
-    types_to_exclude = ['module', 'builtin_function_or_method', '_Feature', 'type', 'ufunc']
+    types_to_exclude = ['module', 'builtin_function_or_method', '_Feature',  'ufunc']
     values = _nms.who_ls()
     vardic = [{'varName': v, 'varType': type(eval(v)).__name__, 'varContent': str(eval(v))[:200]}  # noqa
 
-    for v in values if (v not in ['_html', '_nms', 'NamespaceMagics', '_Jupyter']) & (type(eval(v)).__name__ not in types_to_exclude)] # noqa 
+    for v in values if (v not in ['_html', '_nms', 'NamespaceMagics', '_Jupyter','var_dic_list']) & (type(eval(v)).__name__ not in types_to_exclude)] # noqa
     return json.dumps(vardic)
 
 
