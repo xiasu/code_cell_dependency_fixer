@@ -25,7 +25,7 @@ define([
         getDependency(index, dependencySet);
         console.log(dependencySet);
         toBeExported = codeBlocksExecuted.filter(function(e) {
-            return dependencySet.has(e.Index);
+            return dependencySet.has(e.Index)||importingCells.includes(e.Index);
         });
         for(var i=0; i<toBeExported.length;i++)
         {
@@ -136,11 +136,11 @@ define([
                     }
                 }
                 if (! found) {
-                    objectList.push({'Name':listVar.varName, "Type":listVar.varType, "Value": listVar.varContent, "Index": curIndex});
+                    objectList.push({'Name':listVar.varName, "Type":listVar.varType, "Value": listVar.varContent, "Index": curIndex,"Id":listVar.varAddress});
                 }}
         })
         console.log("objectList:", objectList);
-        
+        console.log("code cells recorded:",codeBlocksExecuted);
     }
     function recordByteCode(msg)
     {
@@ -157,10 +157,11 @@ define([
         bytecode=msg.content.text
         console.log(bytecode)
         lines=bytecode.split('\n')
-        var cellIndex=parseInt(lines[0]) + 1
+        var cellIndex=parseInt(lines[0])
         var lineCount=0
         var nameLoaded=""//Stores classname only
         var methodLoaded=""//Stores the top of stash method name so calling function can be directed correctly
+        var stashedOperation=""
         for(var i=1 ;i<lines.length;i++){//Analyze each line of code in this loop. No need to record each bytecode, just mark all prev cells
             var btc=parseLine(lines[i])
             //console.log(btc);
@@ -174,17 +175,23 @@ define([
                 lineCount=btc.lineCount
                 nameLoaded=""
                 methodLoaded=""
+                stashedOperation=""
             }
             var classList = objectList.filter(function(e) {
                 return e.Type == 'type';
             });
+            //console.log(btc)
             switch (btc.code){
                 case "LOAD_NAME":{//Figure out what is this name. If it's a var, make a dependency. If it's a class, make a dependency and mark it
+                    console.log("Calling LOAD_NAME");
                     var retrieved=retrieveVariable(btc.name)
                     console.log(retrieved);
                     if(retrieved!=null){
-                        if(retrieved.Type=="type" || classList.some(el => el.Name === retrieved.Name)){
+                        if(retrieved.Type=="type"||retrieved.Type=="function"){//This name is a class name / function name
                             nameLoaded=retrieved.Name
+                        }
+                        else if(classList.some(el => el.Name === retrieved.Type)){//This name is an object of a certain class
+                            nameLoaded=retrieved.Type//Save it's class name
                         }
                         //Add dependency
                         for(var j=0;j<codeBlocksExecuted.length;j++){
@@ -195,55 +202,126 @@ define([
                             }
                         }
                     }
+                    break;
+                }
+                case "LOAD_GLOBAL":{
+                    console.log("Calling LOAD_GLOBAL");
+                    var retrieved=retrieveVariable(btc.name)
+                    if(retrieved!=null){
+                        //Add dependency
+                        for(var j=0;j<codeBlocksExecuted.length;j++){
+                            if(codeBlocksExecuted[j].Index==cellIndex && cellIndex != retrieved.Index){
+                                //console.log(cellIndex);
+                                //xconsole.log(retrieved);
+                                codeBlocksExecuted[j].Dependency.push(retrieved.Index)
+                            }
+                        }
+                    }
+                    break;
                 }
                 case "STORE_NAME":{//Update the var recent change cell
+                    console.log("Calling STORE_NAME");
                     var retrieved=retrieveVariable(btc.name)
                     //console.log(retrieved);
                     if(retrieved!=null){
                         retrieved.Index=cellIndex
+                        var id=retrieved.Id
+                        //Search for var with same id and update them too
+                        for(var i=0;i<objectList.length;i++){
+                            if(objectList[i].Id==id && objectList[i]!=retrieved){
+                                objectList[i].Index=cellIndex
+                            }
+
+                }
                     }
+                    break;
                 }
                 case "CALL_FUNCTION":{//Make a dependency, and also let parse the function
+                    console.log("Calling CALL_FUNCTION with ",nameLoaded," loaded");
                     if(classList.some(el => el.Name === nameLoaded) && btc.name==""){//Calling a construction function in this case. Generate bytecode for this construction function
-                        generateFunctionBytecode(nameLoaded+".__init__")
+                        console.log("Calling construct func");
+                        generateFunctionBytecode(nameLoaded+".__init__",cellIndex)
                     }
                     else{
-                        if(nameLoaded!=""){//Make dependency to this function, and generate bytecode for this
-                            var retrieved=retrieveVariable(btc.name)
+                        if(nameLoaded.length>0){//Make dependency to this function, and generate bytecode for this
+                            var retrieved=retrieveVariable(nameLoaded)
                             if( retrieved!=null){
-                                retrieved.Index=cellIndex
-                                generateFunctionBytecode(btc.name)
+                                //retrieved.Index=cellIndex
+                                console.log("Calling regular func");
+                                //Add dependency
+                                for(var j=0;j<codeBlocksExecuted.length;j++){
+                                    if(codeBlocksExecuted[j].Index==cellIndex && cellIndex != retrieved.Index){
+                                    codeBlocksExecuted[j].Dependency.push(retrieved.Index)
+                                    }
+                                }
+                                generateFunctionBytecode(btc.name,cellIndex)
+                            }
+                        }
+                        else{
+
+                        }
+                    }
+                    break;
+                }
+                case "MAKE_FUNCTION":{//Store the state of making a func
+                    console.log("Calling MAKE_FUNCTION");
+                    //if(btc.name.length>0){//If name is empty, it's just making a class. Do nothing. If not empty, find the function and update cell index
+                        //var retrieved=retrieveVariable(btc.name)
+                        //if(retrieved!=null){
+                            //retrieved.Index=cellIndex
+                        //}
+                    //}
+                    if(stashedOperation==""){
+                    stashedOperation="MAKE_FUNCTION";
+                    }
+                    break;
+                }
+                case "LOAD_BUILD_CLASS":{//Get into the build class mode. Probably do nothing now?
+                    console.log("Calling LOAD_BUILD_CLASS");
+                    nameLoaded="type";
+                    stashedOperation="LOAD_BUILD_CLASS";
+                    break;
+                }
+                case "LOAD_ATTR":{//Probably do nothing?
+                    console.log("Calling LOAD_ATTR");
+                    break;
+                }
+                case "STORE_ATTR":{//update recent change cell
+                    console.log("Calling STORE_ATTR");
+                    if(nameLoaded.length>0){
+                        var retrieved=retrieveVariable(nameLoaded)
+                        if(retrieved!=null){
+                            retrieved.Index=cellIndex
+                            //Search for var with same id and update them too
+                            for(var i=0;i<objectList.length;i++){
+                                if(objectList[i].Id==id && objectList[i]!=retrieved){
+                                    objectList[i].Index=cellIndex
+                                }
                             }
                         }
                     }
-                }
-                case "MAKE_FUNCTION":{//Update the var recent change cell
-                    if(btc.name!=""){//If name is empty, it's just making a class. Do nothing. If not empty, find the function and update cell index
-                        var retrieved=retrieveVariable(btc.name)
-                        if(retrieved!=null){
-                            retrieved.Index=cellIndex
-                        }
-                    }
-                }
-                case "LOAD_BUILD_CLASS":{//Get into the build class mode. Probably do nothing now?
-                    nameLoaded="type"
-                }
-                case "LOAD_ATTR":{//Probably do nothing?
-                    
-                }
-                case "STORE_ATTR":{//update recent change cell
-                    
+                    break;
                 }
                 case "LOAD_METHOD":{//Probably do nothing?
-                    
+                    console.log("Calling LOAD_METHOD");
+                    methodLoaded=btc.name;
+                    break;
                 }
                 case "CALL_METHOD":{//generate bytecode for this
-                    generateFunctionBytecode(nameLoaded+"."+btc.name)
+                    console.log("Calling CALL_METHOD");
+                    generateFunctionBytecode(nameLoaded+"."+methodLoaded,cellIndex);
+                    break;
                 }
                 case "IMPORT_NAME":{//Just add this cell to the import list. Make sure it's included in output
+                    console.log("Calling IMPORT_NAME");
                     if(!importingCells.includes(cellIndex)){
                         importingCells.push(cellIndex);
                     }
+                    break;
+                }
+                default:{
+                    //console.log("Calling ",btc.code," but it's not included");
+                    break;
                 }
             }
         }
@@ -322,7 +400,7 @@ define([
                             codeBlocksExecuted[i].Index=msg.content.execution_count;
                             //console.log(codeBlocksExecuted[i]);
                             //Call bytecode parser
-                            getBytecode(codeBlocksExecuted[i].Content,i)
+                            getBytecode(codeBlocksExecuted[i].Content,codeBlocksExecuted[i].Index)
                             break;
                         }
                     }
@@ -385,6 +463,7 @@ define([
     }
     var generateFunctionBytecode=function(funcName,index){
         data="import dis\nprint("+index+")\n"+"dis.dis("+funcName+")"
+        console.log(data);
         Jupyter.notebook.kernel.execute(data, { iopub: { output: recordByteCode} }, { silent: false });
     }
     return {
