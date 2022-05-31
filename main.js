@@ -162,8 +162,8 @@ define([
         var nameLoaded=""//Stores classname only
         var methodLoaded=""//Stores the top of stash method name so calling function can be directed correctly
         var stashedOperation=""
-        for(var i=1 ;i<lines.length;i++){//Analyze each line of code in this loop. No need to record each bytecode, just mark all prev cells
-            var btc=parseLine(lines[i])
+        for(var k=1 ;k<lines.length;k++){//Analyze each line of code in this loop. No need to record each bytecode, just mark all prev cells
+            var btc=parseLine(lines[k])
             //console.log(btc);
             if(btc.isDisassembly){
                 break;
@@ -227,12 +227,12 @@ define([
                         retrieved.Index=cellIndex
                         var id=retrieved.Id
                         //Search for var with same id and update them too
-                        for(var i=0;i<objectList.length;i++){
-                            if(objectList[i].Id==id && objectList[i]!=retrieved){
-                                objectList[i].Index=cellIndex
+                        for(var j=0;j<objectList.length;j++){
+                            if(objectList[j].Id==id && objectList[j]!=retrieved){
+                                objectList[j].Index=cellIndex
                             }
 
-                }
+                        }
                     }
                     break;
                 }
@@ -254,7 +254,7 @@ define([
                                     codeBlocksExecuted[j].Dependency.push(retrieved.Index)
                                     }
                                 }
-                                generateFunctionBytecode(btc.name,cellIndex)
+                                generateFunctionBytecode(nameLoaded,cellIndex)
                             }
                         }
                         else{
@@ -293,9 +293,9 @@ define([
                         if(retrieved!=null){
                             retrieved.Index=cellIndex
                             //Search for var with same id and update them too
-                            for(var i=0;i<objectList.length;i++){
-                                if(objectList[i].Id==id && objectList[i]!=retrieved){
-                                    objectList[i].Index=cellIndex
+                            for(var j=0;j<objectList.length;j++){
+                                if(objectList[j].Id==id && objectList[j]!=retrieved){
+                                    objectList[j].Index=cellIndex
                                 }
                             }
                         }
