@@ -208,6 +208,12 @@ define([
                     console.log("Calling LOAD_GLOBAL");
                     var retrieved=retrieveVariable(btc.name)
                     if(retrieved!=null){
+                        if(retrieved.Type=="type"||retrieved.Type=="function"){//This name is a class name / function name
+                            nameLoaded=retrieved.Name
+                        }
+                        else if(classList.some(el => el.Name === retrieved.Type)){//This name is an object of a certain class
+                            nameLoaded=retrieved.Type//Save it's class name
+                        }
                         //Add dependency
                         for(var j=0;j<codeBlocksExecuted.length;j++){
                             if(codeBlocksExecuted[j].Index==cellIndex && cellIndex != retrieved.Index){
