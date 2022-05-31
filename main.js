@@ -356,8 +356,9 @@ define([
                 }
         return null
     }
-    function parseLine(line){
+    function parseLine(oriLine){
         var btc = {isDisassembly:false, isEmpty:false, code:"",lineCount:0,name:""};
+        var line=oriLine.replace(">>",'');
         if(line.length<=1){
             btc.isEmpty=true;
             return btc;
