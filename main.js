@@ -148,7 +148,7 @@ define([
         
         // not sure waht happens here :/
         if (msg.msg_type == "error") {
-            // console.log('error, may handle later??', msg.content.evalue)
+            console.log('error, may handle later??', msg.content.evalue)
             return;
         }
         console.log("Bytecode result: ",msg)
@@ -162,13 +162,20 @@ define([
         var nameLoaded=""//Stores classname only
         var methodLoaded=""//Stores the top of stash method name so calling function can be directed correctly
         var stashedOperation=""
+        var functions2Load=new Array();
+        var waitingSeparator=false;
         for(var k=1 ;k<lines.length;k++){//Analyze each line of code in this loop. No need to record each bytecode, just mark all prev cells
             var btc=parseLine(lines[k])
             //console.log(btc);
             if(btc.isDisassembly){
-                break;
+                waitingSeparator=true;
+                continue;
             }
-            if(btc.isEmpty){
+            if(btc.separator){
+                waitingSeparator=false;
+                continue;
+            }
+            if(btc.isEmpty || waitingSeparator){
                 continue;
             }
             if(btc.lineCount!=0){
@@ -247,6 +254,7 @@ define([
                     if(classList.some(el => el.Name === nameLoaded) && btc.name==""){//Calling a construction function in this case. Generate bytecode for this construction function
                         console.log("Calling construct func");
                         generateFunctionBytecode(nameLoaded+".__init__",cellIndex)
+                        //functions2Load.push(nameLoaded)
                     }
                     else{
                         if(nameLoaded.length>0){//Make dependency to this function, and generate bytecode for this
@@ -261,6 +269,7 @@ define([
                                     }
                                 }
                                 generateFunctionBytecode(nameLoaded,cellIndex)
+                                //functions2Load.push(nameLoaded)
                             }
                         }
                         else{
@@ -315,7 +324,13 @@ define([
                 }
                 case "CALL_METHOD":{//generate bytecode for this
                     console.log("Calling CALL_METHOD");
-                    generateFunctionBytecode(nameLoaded+"."+methodLoaded,cellIndex);
+                    if(nameLoaded.length>0 && classList.some(el => el.Name === nameLoaded)){
+                        generateFunctionBytecode(nameLoaded+"."+methodLoaded,cellIndex);
+                        //functions2Load.push(nameLoaded+"."+methodLoaded);
+                    }
+                    else  {
+                        console.log("Stopped one invalid method disassembly");
+                    }
                     break;
                 }
                 case "IMPORT_NAME":{//Just add this cell to the import list. Make sure it's included in output
@@ -331,7 +346,10 @@ define([
                 }
             }
         }
-        console.log(codeBlocksExecuted);
+        if(functions2Load.length>0){
+        generateFunctionsBytecode(functions2Load,cellIndex)
+        }
+        //console.log(codeBlocksExecuted);
 
         //if(instr.opname in ['LOAD_NAME','STORE_NAME','LOAD_GLOBAL','MAKE_FUNCTION','CALL_FUNCTION','LOAD_BUILD_CLASS','LOAD_ATTR','STORE_ATTR','LOAD_METHOD','STORE_METHOD'])
     }
@@ -357,8 +375,12 @@ define([
         return null
     }
     function parseLine(oriLine){
-        var btc = {isDisassembly:false, isEmpty:false, code:"",lineCount:0,name:""};
-        var line=oriLine.replace(">>",'');
+        var btc = {isDisassembly:false, isEmpty:false, code:"",lineCount:0,name:"",separator:false};
+        var line=oriLine.replace(">>",'  ');
+        if(line=="---...---"){
+            btc.separator=true;
+            return btc;
+        }
         if(line.length<=1){
             btc.isEmpty=true;
             return btc;
@@ -459,6 +481,7 @@ define([
         $.get(libName).done(function(data) {
             //console.log("t='abc'\n"+data);
             //add the code text context to data
+            content=content.replaceAll("\\","\\\\")
             data="content=\'\'\'"+content+"\'\'\'\n"
             +"index="+index+"\n"
             +data
@@ -469,7 +492,15 @@ define([
         });
     }
     var generateFunctionBytecode=function(funcName,index){
-        data="import dis\nprint("+index+")\n"+"dis.dis("+funcName+")"
+        data="import dis\nprint("+index+")\n"+"dis.dis("+funcName+")";
+        console.log(data);
+        Jupyter.notebook.kernel.execute(data, { iopub: { output: recordByteCode} }, { silent: false });
+    }
+    var generateFunctionsBytecode=function(funcNames,index){
+        data="import dis\nprint("+index+")\n";
+        for(var i=0;i<funcNames.length;i++){
+            data=data+"dis.dis("+funcNames[i]+")"+"\nprint('---...---')\n";
+        }
         console.log(data);
         Jupyter.notebook.kernel.execute(data, { iopub: { output: recordByteCode} }, { silent: false });
     }
